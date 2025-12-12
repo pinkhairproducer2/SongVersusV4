@@ -1,6 +1,6 @@
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LandingPage from './pages/Landing';
 import BattleListPage from './pages/BattleList';
@@ -10,8 +10,9 @@ import ProfilePage from './pages/Profile';
 import LeaderboardPage from './pages/Leaderboard';
 import ShopPage from './pages/Shop';
 import TimelinePage from './pages/Timeline';
+import AuthPage from './pages/Auth';
 import { User, VisualizerType } from './types';
-import { getUserById, updateUserCoins } from './services/firebase';
+import { updateUserCoins } from './services/firebase';
 
 const DEFAULT_USER: User = {
   id: '',
@@ -26,41 +27,28 @@ const DEFAULT_USER: User = {
   activeVisualizer: 'Bars'
 };
 
-const App: React.FC = () => {
-  const [user, setUser] = useState<User>(DEFAULT_USER);
-  const [loading, setLoading] = useState(true);
+const AppContent: React.FC = () => {
+  const { user, loading, setUser, signOut } = useAuth();
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const userData = await getUserById('u1');
-        if (userData) {
-          setUser(userData);
-        }
-      } catch (error) {
-        console.error('Error loading user:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadUser();
-  }, []);
+  const currentUser = user || DEFAULT_USER;
 
   const handleSpendCoins = async (amount: number) => {
-    if (user.id) {
+    if (user?.id) {
       await updateUserCoins(user.id, -amount);
-      setUser(prev => ({ ...prev, coins: Math.max(0, prev.coins - amount) }));
+      setUser(prev => prev ? { ...prev, coins: Math.max(0, prev.coins - amount) } : null);
     }
   };
 
   const handleEarnCoins = async (amount: number) => {
-    if (user.id) {
+    if (user?.id) {
       await updateUserCoins(user.id, amount);
-      setUser(prev => ({ ...prev, coins: prev.coins + amount }));
+      setUser(prev => prev ? { ...prev, coins: prev.coins + amount } : null);
     }
   };
 
   const handleOpenDuffle = (duffleId: string) => {
+    if (!user) return;
+    
     const rewardCash = Math.floor(Math.random() * 500) + 100;
     
     let newVisualizer: VisualizerType | undefined;
@@ -70,11 +58,11 @@ const App: React.FC = () => {
 
     handleEarnCoins(rewardCash);
     
-    setUser(prev => ({
+    setUser(prev => prev ? {
         ...prev,
         duffles: prev.duffles.filter(d => d.id !== duffleId),
         unlockedVisualizers: newVisualizer ? [...(prev.unlockedVisualizers || []), newVisualizer] : prev.unlockedVisualizers
-    }));
+    } : null);
 
     let message = `DUFFLE UNZIPPED!\n\nRewards:\n+ $${rewardCash}`;
     if (newVisualizer) message += `\n+ NEW VISUALIZER: ${newVisualizer}`;
@@ -82,8 +70,8 @@ const App: React.FC = () => {
   };
 
   const handleCreateGang = (name: string) => {
-      setUser(prev => ({ ...prev, crew: name }));
-      alert(`Syndicate "${name}" established successfully.`);
+    setUser(prev => prev ? { ...prev, crew: name } : null);
+    alert(`Syndicate "${name}" established successfully.`);
   };
 
   if (loading) {
@@ -95,21 +83,37 @@ const App: React.FC = () => {
   }
 
   return (
+    <Routes>
+      <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+      <Route
+        path="/*"
+        element={
+          <Layout user={currentUser} onOpenDuffle={handleOpenDuffle} onSignOut={signOut} isAuthenticated={!!user}>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/battles" element={<BattleListPage />} />
+              <Route path="/leaderboard" element={<LeaderboardPage />} />
+              <Route path="/timeline" element={<TimelinePage user={currentUser} onCreateGang={handleCreateGang} />} />
+              <Route path="/shop" element={<ShopPage />} />
+              <Route path="/battle/:id" element={<BattleDetailPage user={currentUser} onVote={() => handleEarnCoins(10)} />} />
+              <Route path="/upload" element={user ? <UploadPage user={currentUser} onPublish={() => handleSpendCoins(500)} /> : <Navigate to="/auth" replace />} />
+              <Route path="/profile" element={user ? <ProfilePage currentUser={currentUser} /> : <Navigate to="/auth" replace />} />
+              <Route path="/profile/:id" element={<ProfilePage currentUser={currentUser} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+        }
+      />
+    </Routes>
+  );
+};
+
+const App: React.FC = () => {
+  return (
     <HashRouter>
-      <Layout user={user} onOpenDuffle={handleOpenDuffle}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/battles" element={<BattleListPage />} />
-          <Route path="/leaderboard" element={<LeaderboardPage />} />
-          <Route path="/timeline" element={<TimelinePage user={user} onCreateGang={handleCreateGang} />} />
-          <Route path="/shop" element={<ShopPage />} />
-          <Route path="/battle/:id" element={<BattleDetailPage user={user} onVote={() => handleEarnCoins(10)} />} />
-          <Route path="/upload" element={<UploadPage user={user} onPublish={() => handleSpendCoins(500)} />} />
-          <Route path="/profile" element={<ProfilePage currentUser={user} />} />
-          <Route path="/profile/:id" element={<ProfilePage currentUser={user} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </HashRouter>
   );
 };

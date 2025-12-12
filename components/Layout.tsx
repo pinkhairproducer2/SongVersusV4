@@ -2,16 +2,18 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { User } from '../types';
-import { Hexagon, Menu, Plus, Zap, Map, Radio, Trophy, ShoppingCart, Briefcase, Search, X, Lock, CheckCircle2, User as UserIcon, Activity } from 'lucide-react';
+import { Hexagon, Menu, Plus, Zap, Map, Radio, Trophy, ShoppingCart, Briefcase, Search, X, Lock, CheckCircle2, User as UserIcon, Activity, LogOut, LogIn } from 'lucide-react';
 import { searchUsers } from '../services/firebase';
 
 interface LayoutProps {
   children: React.ReactNode;
   user: User;
   onOpenDuffle?: (id: string) => void;
+  onSignOut?: () => void;
+  isAuthenticated?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
+const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle, onSignOut, isAuthenticated }) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -109,12 +111,31 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
              </div>
           </div>
 
-          <div 
-            onClick={() => navigate('/profile')}
-            className="w-10 h-10 rounded-full border-2 border-white/20 overflow-hidden relative group cursor-pointer hover:border-green-500 transition-colors"
-          >
-            <img src={user.avatarUrl || 'https://via.placeholder.com/40'} alt="User" className="w-full h-full object-cover" />
-          </div>
+          {isAuthenticated ? (
+            <>
+              <div 
+                onClick={() => navigate('/profile')}
+                className="w-10 h-10 rounded-full border-2 border-white/20 overflow-hidden relative group cursor-pointer hover:border-green-500 transition-colors"
+              >
+                <img src={user.avatarUrl || 'https://via.placeholder.com/40'} alt="User" className="w-full h-full object-cover" />
+              </div>
+              <button 
+                onClick={onSignOut}
+                className="hidden sm:flex items-center gap-1 text-gray-500 hover:text-red-400 transition-colors p-2"
+                title="Sign Out"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => navigate('/auth')}
+              className="flex items-center gap-2 bg-gradient-to-r from-neon-cyan to-blue-600 px-4 py-2 rounded-lg text-white font-display uppercase tracking-wider text-sm hover:opacity-90 transition-opacity"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
 
           <button className="md:hidden text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             <Menu className="w-6 h-6" />
@@ -225,7 +246,14 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
             <NavLink to="/timeline" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display uppercase tracking-widest text-white hover:text-green-500">Timeline</NavLink>
             <NavLink to="/shop" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display uppercase tracking-widest text-green-500 hover:text-white">Black Market</NavLink>
             <NavLink to="/upload" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display uppercase tracking-widest text-neon-pink">Create Job</NavLink>
-            <NavLink to="/profile" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display uppercase tracking-widest text-purple-400">My Profile</NavLink>
+            {isAuthenticated ? (
+              <>
+                <NavLink to="/profile" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display uppercase tracking-widest text-purple-400">My Profile</NavLink>
+                <button onClick={() => { onSignOut?.(); setMobileMenuOpen(false); }} className="text-3xl font-display uppercase tracking-widest text-red-400 hover:text-red-300">Sign Out</button>
+              </>
+            ) : (
+              <NavLink to="/auth" onClick={() => setMobileMenuOpen(false)} className="text-3xl font-display uppercase tracking-widest text-neon-cyan">Sign In</NavLink>
+            )}
         </div>
       )}
 
