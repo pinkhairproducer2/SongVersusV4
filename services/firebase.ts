@@ -13,7 +13,8 @@ import {
   limit,
   onSnapshot,
   Timestamp,
-  addDoc
+  addDoc,
+  increment
 } from 'firebase/firestore';
 import type { User, Battle, Territory, Duffle } from '../types';
 
@@ -131,20 +132,12 @@ export async function updateBattleVotes(
 ): Promise<void> {
   const docRef = doc(db, 'battles', battleId);
   const field = side === 'challenger' ? 'votesChallenger' : 'votesDefender';
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const currentVotes = docSnap.data()[field] || 0;
-    await updateDoc(docRef, { [field]: currentVotes + 1 });
-  }
+  await updateDoc(docRef, { [field]: increment(1) });
 }
 
 export async function updateUserCoins(userId: string, amount: number): Promise<void> {
   const docRef = doc(db, 'users', userId);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const currentCoins = docSnap.data().coins || 0;
-    await updateDoc(docRef, { coins: Math.max(0, currentCoins + amount) });
-  }
+  await updateDoc(docRef, { coins: increment(amount) });
 }
 
 export async function createBattle(battle: Omit<Battle, 'id'>): Promise<string> {
