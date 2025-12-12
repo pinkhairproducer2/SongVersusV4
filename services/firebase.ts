@@ -164,7 +164,7 @@ export async function initializeSampleData(): Promise<void> {
   }
 }
 
-export async function signUp(email: string, password: string, username: string): Promise<User> {
+export async function signUp(email: string, password: string, username: string, role: 'Artist' | 'Producer' = 'Artist'): Promise<User> {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const firebaseUser = userCredential.user;
   
@@ -175,7 +175,7 @@ export async function signUp(email: string, password: string, username: string):
     coins: 500,
     reputation: 0,
     rank: 'Newcomer',
-    role: 'Producer',
+    role: role,
     duffles: [],
     unlockedVisualizers: ['Bars'],
     activeVisualizer: 'Bars'

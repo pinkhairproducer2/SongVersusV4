@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Zap, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { Zap, Mail, Lock, User, AlertCircle, Mic2, Music } from 'lucide-react';
+
+type RoleType = 'Artist' | 'Producer';
 
 const AuthPage: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [role, setRole] = useState<RoleType>('Artist');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -30,7 +33,7 @@ const AuthPage: React.FC = () => {
           setLoading(false);
           return;
         }
-        await signUp(email, password, username);
+        await signUp(email, password, username, role);
       } else {
         await signIn(email, password);
       }
@@ -111,21 +114,57 @@ const AuthPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
-              <div>
-                <label className="block text-gray-400 font-mono text-xs uppercase tracking-wider mb-2">
-                  Username
-                </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Choose your operative name"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/50 transition-colors font-mono"
-                  />
+              <>
+                <div>
+                  <label className="block text-gray-400 font-mono text-xs uppercase tracking-wider mb-2">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Choose your operative name"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/50 transition-colors font-mono"
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div>
+                  <label className="block text-gray-400 font-mono text-xs uppercase tracking-wider mb-3">
+                    Choose Your Role
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setRole('Artist')}
+                      className={`p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+                        role === 'Artist'
+                          ? 'border-neon-pink bg-neon-pink/10 text-white'
+                          : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+                      }`}
+                    >
+                      <Mic2 className={`w-8 h-8 ${role === 'Artist' ? 'text-neon-pink' : ''}`} />
+                      <span className="font-display uppercase tracking-wider">Artist</span>
+                      <span className="text-[10px] font-mono text-gray-500">Battle other artists</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole('Producer')}
+                      className={`p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
+                        role === 'Producer'
+                          ? 'border-neon-cyan bg-neon-cyan/10 text-white'
+                          : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+                      }`}
+                    >
+                      <Music className={`w-8 h-8 ${role === 'Producer' ? 'text-neon-cyan' : ''}`} />
+                      <span className="font-display uppercase tracking-wider">Producer</span>
+                      <span className="text-[10px] font-mono text-gray-500">Battle other producers</span>
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
             <div>

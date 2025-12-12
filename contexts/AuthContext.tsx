@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, role: 'Artist' | 'Producer') => Promise<void>;
   signOut: () => Promise<void>;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
 }
@@ -60,8 +60,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(userData);
   };
 
-  const handleSignUp = async (email: string, password: string, username: string) => {
-    const newUser = await signUp(email, password, username);
+  const handleSignUp = async (email: string, password: string, username: string, role: 'Artist' | 'Producer') => {
+    const newUser = await signUp(email, password, username, role);
     setUser(newUser);
   };
 
