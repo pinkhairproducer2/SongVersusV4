@@ -16,6 +16,14 @@ import {
   addDoc,
   increment
 } from 'firebase/firestore';
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
 import type { User, Battle, Territory, Duffle } from '../types';
 
 const firebaseConfig = {
@@ -29,6 +37,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 export const usersCollection = collection(db, 'users');
 export const battlesCollection = collection(db, 'battles');
@@ -153,6 +162,40 @@ export async function initializeSampleData(): Promise<void> {
   if (usersSnapshot.empty) {
     console.log('Database is empty - please add data through Firebase Console');
   }
+}
+
+export async function signUp(email: string, password: string, username: string): Promise<User> {
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const firebaseUser = userCredential.user;
+  
+  const newUser: User = {
+    id: firebaseUser.uid,
+    username: username,
+    avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+    coins: 500,
+    reputation: 0,
+    rank: 'Newcomer',
+    role: 'Producer',
+    duffles: [],
+    unlockedVisualizers: ['Bars'],
+    activeVisualizer: 'Bars'
+  };
+  
+  await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+  return newUser;
+}
+
+export async function signIn(email: string, password: string): Promise<FirebaseUser> {
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  return userCredential.user;
+}
+
+export async function signOut(): Promise<void> {
+  await firebaseSignOut(auth);
+}
+
+export function onAuthStateChanged(callback: (user: FirebaseUser | null) => void): () => void {
+  return firebaseOnAuthStateChanged(auth, callback);
 }
 
 export { onSnapshot, query, where, orderBy, limit };
