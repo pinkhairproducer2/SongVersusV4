@@ -181,7 +181,13 @@ export async function signUp(email: string, password: string, username: string):
     activeVisualizer: 'Bars'
   };
   
-  await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+  try {
+    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+  } catch (error) {
+    await firebaseUser.delete();
+    throw new Error('Failed to create user profile. Please try again.');
+  }
+  
   return newUser;
 }
 

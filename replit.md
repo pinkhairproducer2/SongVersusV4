@@ -21,7 +21,10 @@ A React-based music battle game application where users can stake cash, battle f
 │   ├── CityMap.tsx
 │   ├── Countdown.tsx
 │   └── Layout.tsx
+├── contexts/        # React contexts
+│   └── AuthContext.tsx  # Authentication state management
 ├── pages/           # Page components
+│   ├── Auth.tsx     # Login/SignUp page
 │   ├── BattleDetail.tsx
 │   ├── BattleList.tsx
 │   ├── Landing.tsx
@@ -31,9 +34,9 @@ A React-based music battle game application where users can stake cash, battle f
 │   ├── Timeline.tsx
 │   └── Upload.tsx
 ├── services/        # API services
-│   ├── firebase.ts  # Firebase Firestore integration
+│   ├── firebase.ts  # Firebase Firestore + Auth integration
 │   └── gemini.ts    # Google AI integration
-├── App.tsx          # Main app with routing
+├── App.tsx          # Main app with routing and auth
 ├── index.tsx        # Entry point
 ├── types.ts         # TypeScript types
 ├── index.html       # HTML template
@@ -57,8 +60,15 @@ A React-based music battle game application where users can stake cash, battle f
 ## Firebase Setup
 1. Create a Firebase project at console.firebase.google.com
 2. Enable Firestore Database
-3. Configure security rules (allow read/write for development)
-4. Add web app and copy config values to secrets
+3. Enable Authentication (Email/Password provider)
+4. Configure security rules (allow read/write for development)
+5. Add web app and copy config values to secrets
+
+### Authentication
+- Email/Password authentication enabled
+- User profile created in Firestore on signup with 500 starting coins
+- Protected routes: /upload, /profile redirect to /auth when not logged in
+- Public routes: /, /battles, /leaderboard, /timeline, /shop
 
 ### Firestore Collections
 - `users`: User profiles (id, username, avatarUrl, coins, reputation, rank, role, etc.)

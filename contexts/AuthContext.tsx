@@ -31,13 +31,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(async (firebaseUser) => {
-      if (firebaseUser) {
-        const userData = await getUserById(firebaseUser.uid);
-        setUser(userData);
-      } else {
+      try {
+        if (firebaseUser) {
+          const userData = await getUserById(firebaseUser.uid);
+          if (userData) {
+            setUser(userData);
+          } else {
+            console.error('User profile not found in database');
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
