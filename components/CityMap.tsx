@@ -4,44 +4,37 @@ import { Territory } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Users, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getTerritories } from '../services/firebase';
 
-// Mock Data for determining control
-// In a real app, this would come from the backend aggregation of all battle history
-const MOCK_TURF_STATS = [
-    { genre: 'Trap', topCrew: '808 Mafia', wins: 42, color: '#FF2D95' }, // Neon Pink
-    { genre: 'Hip Hop', topCrew: 'Wu-Tang', wins: 120, color: '#FFD24C' }, // Gold
-    { genre: 'Pop', topCrew: 'Starboys', wins: 15, color: '#00E5FF' }, // Cyan
-    { genre: 'Rock', topCrew: 'Metallix', wins: 33, color: '#EF4444' }, // Red
-];
-
-const INITIAL_TERRITORIES: Territory[] = [
-  { id: 't1', name: 'Trap District', genre: 'Trap', control: 'Loading...', color: '#333', battleCount: 24 },
-  { id: 't2', name: 'Boom Bap Block', genre: 'Hip Hop', control: 'Loading...', color: '#333', battleCount: 12 },
-  { id: 't3', name: 'Cyber Pop Plaza', genre: 'Pop', control: 'Loading...', color: '#333', battleCount: 56 },
-  { id: 't4', name: 'Riff Row', genre: 'Rock', control: 'Loading...', color: '#333', battleCount: 8 },
+const DEFAULT_TERRITORIES: Territory[] = [
+  { id: 't1', name: 'Trap District', genre: 'Trap', control: 'Unclaimed', color: '#FF2D95', battleCount: 0 },
+  { id: 't2', name: 'Boom Bap Block', genre: 'Hip Hop', control: 'Unclaimed', color: '#FFD24C', battleCount: 0 },
+  { id: 't3', name: 'Cyber Pop Plaza', genre: 'Pop', control: 'Unclaimed', color: '#00E5FF', battleCount: 0 },
+  { id: 't4', name: 'Riff Row', genre: 'Rock', control: 'Unclaimed', color: '#EF4444', battleCount: 0 },
 ];
 
 const CityMap: React.FC = () => {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [territories, setTerritories] = useState<Territory[]>(INITIAL_TERRITORIES);
+  const [territories, setTerritories] = useState<Territory[]>(DEFAULT_TERRITORIES);
 
   useEffect(() => {
-      // Calculate control dynamically
-      const updated = INITIAL_TERRITORIES.map(t => {
-          const stats = MOCK_TURF_STATS.find(s => s.genre === t.genre);
-          if (stats) {
-              return { ...t, control: stats.topCrew, color: stats.color };
-          }
-          return t;
-      });
-      setTerritories(updated);
+    const loadTerritories = async () => {
+      try {
+        const data = await getTerritories();
+        if (data.length > 0) {
+          setTerritories(data);
+        }
+      } catch (error) {
+        console.error('Error loading territories:', error);
+      }
+    };
+    loadTerritories();
   }, []);
 
   const activeTerritory = territories.find(t => t.id === (hovered || selected));
 
-  // Simple polygon paths for a stylized city map
   const paths = {
     t1: "M 50 150 L 150 100 L 250 150 L 200 250 L 100 250 Z",
     t2: "M 260 140 L 400 80 L 450 180 L 350 240 L 260 140 Z",
@@ -52,7 +45,6 @@ const CityMap: React.FC = () => {
   return (
     <div className="relative w-full aspect-video bg-black/40 border border-white/10 rounded-lg overflow-hidden backdrop-blur-sm group">
       
-      {/* Map SVG */}
       <svg viewBox="0 0 600 450" className="w-full h-full drop-shadow-2xl">
         <defs>
           <filter id="glow">
@@ -64,19 +56,17 @@ const CityMap: React.FC = () => {
           </filter>
         </defs>
         
-        {/* Background Grid Lines */}
         <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
           <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
         </pattern>
         <rect width="100%" height="100%" fill="url(#grid)" />
 
-        {/* Territories */}
         <g style={{ transform: 'scale(1)', transformOrigin: 'center' }}>
           {territories.map((t) => (
             <path
               key={t.id}
               d={(paths as any)[t.id]}
-              fill={hovered === t.id ? t.color : `${t.color}33`} // 20% opacity default
+              fill={hovered === t.id ? t.color : `${t.color}33`}
               stroke={t.color}
               strokeWidth={hovered === t.id ? 3 : 1}
               className="transition-all duration-300 cursor-pointer hover:filter-drop-shadow"
@@ -85,7 +75,6 @@ const CityMap: React.FC = () => {
               onMouseLeave={() => setHovered(null)}
               onClick={() => {
                 setSelected(t.id);
-                // Simulate navigation after selection
                 setTimeout(() => navigate('/battles'), 600);
               }}
             />
@@ -93,7 +82,6 @@ const CityMap: React.FC = () => {
         </g>
       </svg>
 
-      {/* Floating Info HUD */}
       <AnimatePresence>
         {activeTerritory && (
           <motion.div 
@@ -134,7 +122,6 @@ const CityMap: React.FC = () => {
         )}
       </AnimatePresence>
       
-      {/* Decorative HUD Elements */}
       <div className="absolute top-4 right-4 text-[10px] font-mono text-white/30 flex flex-col items-end pointer-events-none">
         <span>SECTOR: NEON-PRIME</span>
         <span>GRID: 44.2.1</span>

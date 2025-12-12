@@ -2,24 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { User, Battle, ChatMessage, VisualizerType } from '../types';
-import { Play, Pause, Hexagon, MessageSquare, Flag, Share2, DollarSign, Volume2, Shield, Lock, Palette } from 'lucide-react';
+import { Play, Pause, MessageSquare, Flag, Share2, DollarSign, Shield, Lock, Palette } from 'lucide-react';
 import { generateHypeCommentary } from '../services/gemini';
 import Countdown from '../components/Countdown';
 import AudioVisualizer from '../components/AudioVisualizer';
+import { getBattleById, updateBattleVotes } from '../services/firebase';
 
 interface BattleDetailProps {
   user: User;
   onVote: () => void;
 }
-
-// Mock Battle Data with functional timestamp (Ends 2 days from now)
-const MOCK_BATTLE: Battle = {
-  id: 'b1', title: 'Midnight Freestyle', genre: 'Trap', type: 'BEAT',
-  challenger: { id: 'c1', username: 'Lil V', coins: 1500, reputation: 5, rank: 'Rookie', avatarUrl: 'https://picsum.photos/100/100?1', wins: 5, losses: 2, crew: 'Westside', role: 'Producer', duffles: [] },
-  defender: { id: 'd1', username: 'Big D', coins: 3400, reputation: 12, rank: 'Vet', avatarUrl: 'https://picsum.photos/100/100?2', wins: 15, losses: 4, crew: 'Trap Lords', role: 'Producer', duffles: [] },
-  endsAt: Date.now() + 172800000 + 3600000, // 2 Days + 1 Hour
-  votesChallenger: 450, votesDefender: 320, status: 'active', bpm: 140, entryFee: 2500
-};
 
 const abbreviateCrew = (name: string) => {
     if (name.length <= 4) return name;
@@ -40,7 +32,6 @@ const BattlePlayer = ({ active, onClick, color, visualizerType }: { active: bool
                 {active ? <Pause className="fill-current w-5 h-5" /> : <Play className="fill-current w-5 h-5 ml-1" />}
             </button>
             <div className="flex-1 space-y-2 h-16 flex flex-col justify-center">
-                {/* Simulated Audio Visualizer */}
                 <AudioVisualizer active={active} color={color} type={visualizerType} />
             </div>
         </div>
@@ -49,34 +40,59 @@ const BattlePlayer = ({ active, onClick, color, visualizerType }: { active: bool
 
 const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
   const { id } = useParams();
+  const [battle, setBattle] = useState<Battle | null>(null);
+  const [loading, setLoading] = useState(true);
   const [playingSide, setPlayingSide] = useState<'challenger' | 'defender' | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
-  const [votesC, setVotesC] = useState(MOCK_BATTLE.votesChallenger);
-  const [votesD, setVotesD] = useState(MOCK_BATTLE.votesDefender);
+  const [votesC, setVotesC] = useState(0);
+  const [votesD, setVotesD] = useState(0);
   const [activeVisualizer, setActiveVisualizer] = useState<VisualizerType>(user.activeVisualizer || 'Bars');
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', user: 'System', text: 'Betting lines open. Stake cash to boost.', isBot: true },
-    { id: '2', user: 'Fanboy99', text: 'Lil V going hard on this one.' }
+    { id: '1', user: 'System', text: 'Betting lines open. Stake cash to boost.', isBot: true }
   ]);
   const [chatInput, setChatInput] = useState('');
 
-  // Hype Bot Logic
+  useEffect(() => {
+    const loadBattle = async () => {
+      if (!id) return;
+      try {
+        const battleData = await getBattleById(id);
+        if (battleData) {
+          setBattle(battleData);
+          setVotesC(battleData.votesChallenger);
+          setVotesD(battleData.votesDefender);
+        }
+      } catch (error) {
+        console.error('Error loading battle:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadBattle();
+  }, [id]);
+
   const triggerHypeBot = async () => {
-    const defName = MOCK_BATTLE.defender?.username || "Opponent";
-    const leader = votesC > votesD ? MOCK_BATTLE.challenger.username : defName;
-    const commentary = await generateHypeCommentary(MOCK_BATTLE.title, MOCK_BATTLE.genre, leader);
+    if (!battle) return;
+    const defName = battle.defender?.username || "Opponent";
+    const leader = votesC > votesD ? battle.challenger.username : defName;
+    const commentary = await generateHypeCommentary(battle.title, battle.genre, leader);
     setMessages(prev => [...prev, { id: Date.now().toString(), user: 'HypeBot_AI', text: commentary, isBot: true }]);
   };
 
-  const handleVote = (side: 'challenger' | 'defender') => {
-    if (hasVoted) return; 
+  const handleVote = async (side: 'challenger' | 'defender') => {
+    if (hasVoted || !battle) return; 
     
-    if (side === 'challenger') setVotesC(v => v + 1);
-    else setVotesD(v => v + 1);
-    
-    setHasVoted(true);
-    onVote();
-    if (Math.random() > 0.7) triggerHypeBot(); 
+    try {
+      await updateBattleVotes(battle.id, side);
+      if (side === 'challenger') setVotesC(v => v + 1);
+      else setVotesD(v => v + 1);
+      
+      setHasVoted(true);
+      onVote();
+      if (Math.random() > 0.7) triggerHypeBot();
+    } catch (error) {
+      console.error('Error voting:', error);
+    }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -101,29 +117,43 @@ const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
       setActiveVisualizer(available[nextIdx]);
   };
 
+  if (loading) {
+    return (
+      <div className="pb-12 max-w-[1400px] mx-auto px-4 lg:px-8 pt-6 text-center">
+        <div className="text-white font-display text-xl animate-pulse">Loading battle...</div>
+      </div>
+    );
+  }
+
+  if (!battle) {
+    return (
+      <div className="pb-12 max-w-[1400px] mx-auto px-4 lg:px-8 pt-6 text-center">
+        <div className="text-gray-500 font-mono">Battle not found</div>
+      </div>
+    );
+  }
+
   return (
     <div className="pb-12 max-w-[1400px] mx-auto px-4 lg:px-8 pt-6">
       
-      {/* Header Info */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b-2 border-white/10 pb-6">
         <div>
             <div className="flex items-center gap-2 mb-2">
-                <span className="bg-neon-pink text-black px-2 py-0.5 font-bold font-display uppercase tracking-widest">{MOCK_BATTLE.genre}</span>
+                <span className="bg-neon-pink text-black px-2 py-0.5 font-bold font-display uppercase tracking-widest">{battle.genre}</span>
                 <span className="bg-green-600/20 text-green-500 border border-green-600/50 px-2 py-0.5 font-mono text-xs flex items-center gap-1">
-                    <DollarSign className="w-3 h-3" /> ENTRY FEE: ${MOCK_BATTLE.entryFee.toLocaleString()}
+                    <DollarSign className="w-3 h-3" /> ENTRY FEE: ${battle.entryFee.toLocaleString()}
                 </span>
             </div>
             <h1 className="text-4xl md:text-6xl font-display uppercase italic tracking-wider text-white drop-shadow-[4px_4px_0px_rgba(0,0,0,1)]">
-                {MOCK_BATTLE.title}
+                {battle.title}
             </h1>
         </div>
         <div className="mt-4 md:mt-0 text-right">
             <div className="text-gray-400 font-mono text-xs uppercase bg-black px-2 py-1 inline-block border border-gray-800">Mission Timer</div>
-            <Countdown endsAt={MOCK_BATTLE.endsAt} />
+            <Countdown endsAt={battle.endsAt} />
         </div>
       </div>
 
-      {/* Visualizer Selector */}
       <div className="mb-4 flex justify-end">
           <button 
             onClick={cycleVisualizer}
@@ -135,7 +165,6 @@ const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
 
       <div className="grid lg:grid-cols-12 gap-8">
         
-        {/* Left: Challenger Card */}
         <div className="lg:col-span-5 bg-dark-800 border-l-4 border-neon-pink p-6 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <Shield className="w-32 h-32 text-neon-pink" />
@@ -143,21 +172,20 @@ const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
             
             <div className="flex items-center gap-4 mb-6 relative z-10">
                 <div className="relative">
-                    <img src={MOCK_BATTLE.challenger.avatarUrl} className="w-20 h-20 rounded-none border-2 border-white shadow-lg" />
-                    <div className="absolute -bottom-2 -right-2 bg-neon-pink text-black font-bold text-xs px-1.5 border border-white">LVL {MOCK_BATTLE.challenger.reputation}</div>
+                    <img src={battle.challenger?.avatarUrl || 'https://via.placeholder.com/80'} className="w-20 h-20 rounded-none border-2 border-white shadow-lg" />
+                    <div className="absolute -bottom-2 -right-2 bg-neon-pink text-black font-bold text-xs px-1.5 border border-white">LVL {battle.challenger?.reputation || 0}</div>
                 </div>
                 <div>
-                    <h2 className="text-3xl font-display uppercase text-white">{MOCK_BATTLE.challenger.username}</h2>
-                    <p className="text-gray-400 font-mono text-xs">CHALLENGER // {MOCK_BATTLE.challenger.rank}</p>
-                    {MOCK_BATTLE.challenger.crew && (
-                        <span title={MOCK_BATTLE.challenger.crew} className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm tracking-wider cursor-help mt-1 inline-block">
-                            {abbreviateCrew(MOCK_BATTLE.challenger.crew)}
+                    <h2 className="text-3xl font-display uppercase text-white">{battle.challenger?.username || 'Unknown'}</h2>
+                    <p className="text-gray-400 font-mono text-xs">CHALLENGER // {battle.challenger?.rank || 'Rookie'}</p>
+                    {battle.challenger?.crew && (
+                        <span title={battle.challenger.crew} className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm tracking-wider cursor-help mt-1 inline-block">
+                            {abbreviateCrew(battle.challenger.crew)}
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* PLAYER A */}
             <div className="mb-8">
                 <label className="text-xs font-mono text-neon-pink uppercase">Track A // Audio Source</label>
                 <BattlePlayer 
@@ -189,7 +217,6 @@ const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
             </div>
         </div>
 
-        {/* Center: Feed */}
         <div className="lg:col-span-2 flex flex-col gap-4">
              <div className="flex-1 bg-black/40 border border-white/10 flex flex-col">
                  <div className="bg-white/5 p-2 text-center text-[10px] font-mono text-gray-400 uppercase tracking-widest border-b border-white/10">
@@ -225,8 +252,7 @@ const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
              </div>
         </div>
 
-        {/* Right: Defender Card */}
-        {MOCK_BATTLE.defender && (
+        {battle.defender && (
         <div className="lg:col-span-5 bg-dark-800 border-r-4 border-neon-cyan p-6 relative overflow-hidden group text-right">
              <div className="absolute top-0 left-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <Shield className="w-32 h-32 text-neon-cyan" />
@@ -234,21 +260,20 @@ const BattleDetailPage: React.FC<BattleDetailProps> = ({ user, onVote }) => {
 
             <div className="flex flex-row-reverse items-center gap-4 mb-6 relative z-10">
                 <div className="relative">
-                    <img src={MOCK_BATTLE.defender.avatarUrl} className="w-20 h-20 rounded-none border-2 border-white shadow-lg" />
-                    <div className="absolute -bottom-2 -left-2 bg-neon-cyan text-black font-bold text-xs px-1.5 border border-white">LVL {MOCK_BATTLE.defender.reputation}</div>
+                    <img src={battle.defender.avatarUrl || 'https://via.placeholder.com/80'} className="w-20 h-20 rounded-none border-2 border-white shadow-lg" />
+                    <div className="absolute -bottom-2 -left-2 bg-neon-cyan text-black font-bold text-xs px-1.5 border border-white">LVL {battle.defender.reputation || 0}</div>
                 </div>
                 <div>
-                    <h2 className="text-3xl font-display uppercase text-white">{MOCK_BATTLE.defender.username}</h2>
-                    <p className="text-gray-400 font-mono text-xs">DEFENDER // {MOCK_BATTLE.defender.rank}</p>
-                    {MOCK_BATTLE.defender.crew && (
-                        <span title={MOCK_BATTLE.defender.crew} className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm tracking-wider cursor-help mt-1 inline-block">
-                            {abbreviateCrew(MOCK_BATTLE.defender.crew)}
+                    <h2 className="text-3xl font-display uppercase text-white">{battle.defender.username}</h2>
+                    <p className="text-gray-400 font-mono text-xs">DEFENDER // {battle.defender.rank || 'Rookie'}</p>
+                    {battle.defender.crew && (
+                        <span title={battle.defender.crew} className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm tracking-wider cursor-help mt-1 inline-block">
+                            {abbreviateCrew(battle.defender.crew)}
                         </span>
                     )}
                 </div>
             </div>
 
-             {/* PLAYER B */}
              <div className="mb-8" dir="rtl">
                 <label className="text-xs font-mono text-neon-cyan uppercase w-full block text-right">Track B // Audio Source</label>
                 <div dir="ltr">

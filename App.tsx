@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LandingPage from './pages/Landing';
@@ -10,69 +10,89 @@ import ProfilePage from './pages/Profile';
 import LeaderboardPage from './pages/Leaderboard';
 import ShopPage from './pages/Shop';
 import TimelinePage from './pages/Timeline';
-
-// Mock current user
 import { User, VisualizerType } from './types';
+import { getUserById, updateUserCoins } from './services/firebase';
 
-const CURRENT_USER: User = {
-  id: 'u1',
-  username: 'BeatMaster_X',
-  avatarUrl: 'https://picsum.photos/100/100',
-  coins: 5250,
-  reputation: 12, // Formerly orbs
-  rank: 'Street Legend',
-  crew: '808 Mafia',
-  bio: 'Producing beats since 2018. King of the Trap District.',
-  wins: 24,
-  losses: 5,
+const DEFAULT_USER: User = {
+  id: '',
+  username: 'Guest',
+  avatarUrl: '',
+  coins: 0,
+  reputation: 0,
+  rank: 'Newcomer',
   role: 'Producer',
+  duffles: [],
   unlockedVisualizers: ['Bars'],
-  activeVisualizer: 'Bars',
-  duffles: [
-    { id: 'd1', acquiredAt: Date.now() - 90000000, unlocksAt: Date.now() - 1000, status: 'ready', type: 'Gold' },
-    { id: 'd2', acquiredAt: Date.now(), unlocksAt: Date.now() + 86400000, status: 'locked', type: 'Standard' }
-  ]
+  activeVisualizer: 'Bars'
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User>(CURRENT_USER);
+  const [user, setUser] = useState<User>(DEFAULT_USER);
+  const [loading, setLoading] = useState(true);
 
-  const handleSpendCoins = (amount: number) => {
-    setUser(prev => ({ ...prev, coins: Math.max(0, prev.coins - amount) }));
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const userData = await getUserById('u1');
+        if (userData) {
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUser();
+  }, []);
+
+  const handleSpendCoins = async (amount: number) => {
+    if (user.id) {
+      await updateUserCoins(user.id, -amount);
+      setUser(prev => ({ ...prev, coins: Math.max(0, prev.coins - amount) }));
+    }
   };
 
-  const handleEarnCoins = (amount: number) => {
-    setUser(prev => ({ ...prev, coins: prev.coins + amount }));
+  const handleEarnCoins = async (amount: number) => {
+    if (user.id) {
+      await updateUserCoins(user.id, amount);
+      setUser(prev => ({ ...prev, coins: prev.coins + amount }));
+    }
   };
 
   const handleOpenDuffle = (duffleId: string) => {
-      // Simulate rewards
-      const rewardCash = Math.floor(Math.random() * 500) + 100;
-      
-      // Random chance to unlock visualizer
-      let newVisualizer: VisualizerType | undefined;
-      const roll = Math.random();
-      if (roll > 0.7 && !user.unlockedVisualizers?.includes('Wave')) newVisualizer = 'Wave';
-      else if (roll > 0.9 && !user.unlockedVisualizers?.includes('Orb')) newVisualizer = 'Orb';
+    const rewardCash = Math.floor(Math.random() * 500) + 100;
+    
+    let newVisualizer: VisualizerType | undefined;
+    const roll = Math.random();
+    if (roll > 0.7 && !user.unlockedVisualizers?.includes('Wave')) newVisualizer = 'Wave';
+    else if (roll > 0.9 && !user.unlockedVisualizers?.includes('Orb')) newVisualizer = 'Orb';
 
-      handleEarnCoins(rewardCash);
-      
-      // Remove duffle and update items
-      setUser(prev => ({
-          ...prev,
-          duffles: prev.duffles.filter(d => d.id !== duffleId),
-          unlockedVisualizers: newVisualizer ? [...(prev.unlockedVisualizers || []), newVisualizer] : prev.unlockedVisualizers
-      }));
+    handleEarnCoins(rewardCash);
+    
+    setUser(prev => ({
+        ...prev,
+        duffles: prev.duffles.filter(d => d.id !== duffleId),
+        unlockedVisualizers: newVisualizer ? [...(prev.unlockedVisualizers || []), newVisualizer] : prev.unlockedVisualizers
+    }));
 
-      let message = `DUFFLE UNZIPPED!\n\nRewards:\n+ $${rewardCash}`;
-      if (newVisualizer) message += `\n+ NEW VISUALIZER: ${newVisualizer}`;
-      alert(message);
+    let message = `DUFFLE UNZIPPED!\n\nRewards:\n+ $${rewardCash}`;
+    if (newVisualizer) message += `\n+ NEW VISUALIZER: ${newVisualizer}`;
+    alert(message);
   };
 
   const handleCreateGang = (name: string) => {
       setUser(prev => ({ ...prev, crew: name }));
       alert(`Syndicate "${name}" established successfully.`);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="text-white font-display text-2xl animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <HashRouter>

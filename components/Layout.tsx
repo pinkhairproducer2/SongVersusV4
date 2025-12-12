@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { User } from '../types';
 import { Hexagon, Menu, Plus, Zap, Map, Radio, Trophy, ShoppingCart, Briefcase, Search, X, Lock, CheckCircle2, User as UserIcon, Activity } from 'lucide-react';
+import { searchUsers } from '../services/firebase';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,21 +11,37 @@ interface LayoutProps {
   onOpenDuffle?: (id: string) => void;
 }
 
-const MOCK_SEARCH_USERS = [
-    { id: 'u2', username: 'Lil V', role: 'Artist', avatar: 'https://picsum.photos/50/50?1' },
-    { id: 'u3', username: 'Big D', role: 'Producer', avatar: 'https://picsum.photos/50/50?2' },
-    { id: 'u4', username: 'Slash_Jr', role: 'Artist', avatar: 'https://picsum.photos/50/50?3' },
-    { id: 'u5', username: 'RiffMaster', role: 'Artist', avatar: 'https://picsum.photos/50/50?4' },
-];
-
 const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [duffleOpen, setDuffleOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{id: string, username: string, role: string, avatar: string}[]>([]);
 
-  const readyDuffles = user.duffles.filter(d => d.status === 'ready').length;
+  const readyDuffles = user.duffles?.filter(d => d.status === 'ready').length || 0;
+
+  useEffect(() => {
+    const doSearch = async () => {
+      if (searchQuery.length >= 2) {
+        try {
+          const users = await searchUsers(searchQuery);
+          setSearchResults(users.map(u => ({
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            avatar: u.avatarUrl
+          })));
+        } catch (error) {
+          console.error('Search error:', error);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    };
+    const timer = setTimeout(doSearch, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleSearchSelect = (userId: string) => {
       navigate(`/profile/${userId}`);
@@ -34,14 +51,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
 
   return (
     <div className="min-h-screen bg-dark-900 text-gray-200 font-sans selection:bg-green-500 selection:text-black flex flex-col relative overflow-hidden">
-      {/* Background Grime/Grid */}
       <div className="fixed inset-0 bg-grid-pattern opacity-10 pointer-events-none z-0" />
       <div className="fixed inset-0 bg-vignette pointer-events-none z-0" />
 
-      {/* Top HUD Bar */}
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10 h-16 flex items-center justify-between px-4 lg:px-8 shadow-lg z-50">
+      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10 h-16 flex items-center justify-between px-4 lg:px-8 shadow-lg">
         
-        {/* Logo Area */}
         <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate('/')}>
           <div className="relative group">
             <div className="absolute -inset-1 bg-neon-cyan rounded-full blur opacity-25 group-hover:opacity-50 transition-opacity"></div>
@@ -54,7 +68,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
           </h1>
         </div>
 
-        {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
           <NavLink to="/" className={({ isActive }) => `flex items-center gap-2 font-display text-lg uppercase tracking-widest hover:text-white transition-colors ${isActive ? 'text-white border-b-2 border-neon-cyan' : 'text-gray-500'}`}>
             <Map className="w-4 h-4" /> Map
@@ -73,25 +86,21 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
           </NavLink>
         </nav>
 
-        {/* HUD Right: User & Stats */}
         <div className="flex items-center gap-4 lg:gap-6">
           
           <div className="flex items-center gap-2">
-             {/* Upload Button */}
              <NavLink to="/upload" className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/20 px-4 py-1.5 rounded hover:bg-white/10 transition-all group">
                 <Plus className="w-4 h-4 text-neon-pink group-hover:text-white" />
                 <span className="font-hud text-lg text-gray-300 group-hover:text-white tracking-widest uppercase">Upload</span>
              </NavLink>
-             {/* Search Button */}
              <button onClick={() => setSearchOpen(true)} className="bg-white/5 border border-white/20 p-2 rounded hover:bg-white/10 transition-colors">
                 <Search className="w-5 h-5 text-neon-cyan" />
              </button>
           </div>
           
-          {/* GTA Style Cash & Duffles */}
           <div className="flex flex-col items-end cursor-pointer" onClick={() => setDuffleOpen(true)}>
              <div className="text-2xl font-display font-bold text-green-500 tracking-wide drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] leading-none">
-                ${user.coins.toLocaleString()}
+                ${user.coins?.toLocaleString() || '0'}
              </div>
              <div className="flex items-center gap-1 group">
                 <span className="text-[10px] text-gray-400 font-mono uppercase group-hover:text-white transition-colors">Duffles</span>
@@ -104,7 +113,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
             onClick={() => navigate('/profile')}
             className="w-10 h-10 rounded-full border-2 border-white/20 overflow-hidden relative group cursor-pointer hover:border-green-500 transition-colors"
           >
-            <img src={user.avatarUrl} alt="User" className="w-full h-full object-cover" />
+            <img src={user.avatarUrl || 'https://via.placeholder.com/40'} alt="User" className="w-full h-full object-cover" />
           </div>
 
           <button className="md:hidden text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -113,7 +122,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
         </div>
       </header>
 
-      {/* SEARCH MODAL */}
       {searchOpen && (
           <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-start justify-center pt-24 px-4">
               <div className="bg-dark-900 border border-white/10 w-full max-w-lg rounded-lg shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
@@ -129,21 +137,24 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
                       <button onClick={() => setSearchOpen(false)}><X className="w-5 h-5 text-gray-500 hover:text-white" /></button>
                   </div>
                   <div className="p-2 max-h-64 overflow-y-auto">
-                      {MOCK_SEARCH_USERS.filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
+                      {searchResults.map(u => (
                           <div 
                             key={u.id} 
                             onClick={() => handleSearchSelect(u.id)}
                             className="flex items-center gap-3 p-3 hover:bg-white/5 rounded cursor-pointer group transition-colors"
                           >
-                              <img src={u.avatar} className="w-10 h-10 rounded border border-white/10" />
+                              <img src={u.avatar || 'https://via.placeholder.com/40'} className="w-10 h-10 rounded border border-white/10" />
                               <div>
                                   <div className="font-display text-lg uppercase text-white group-hover:text-neon-cyan">{u.username}</div>
                                   <div className="text-xs font-mono text-gray-500 uppercase">{u.role}</div>
                               </div>
                           </div>
                       ))}
-                      {MOCK_SEARCH_USERS.filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                      {searchQuery.length >= 2 && searchResults.length === 0 && (
                           <div className="p-4 text-center text-gray-500 font-mono text-sm">No operatives found.</div>
+                      )}
+                      {searchQuery.length < 2 && (
+                          <div className="p-4 text-center text-gray-500 font-mono text-sm">Type at least 2 characters to search.</div>
                       )}
                   </div>
               </div>
@@ -151,7 +162,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
           </div>
       )}
 
-      {/* DUFFLE INVENTORY MODAL */}
       {duffleOpen && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-dark-800 border border-white/20 w-full max-w-2xl rounded-xl shadow-2xl relative">
@@ -167,8 +177,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
                     </p>
 
                     <div className="grid md:grid-cols-3 gap-6">
-                        {/* Render existing duffles */}
-                        {user.duffles.map((duffle, idx) => (
+                        {(user.duffles || []).map((duffle) => (
                             <div key={duffle.id} className="bg-black/40 border border-white/10 rounded-lg p-6 flex flex-col items-center justify-center text-center relative group overflow-hidden">
                                 {duffle.status === 'ready' ? (
                                     <>
@@ -194,8 +203,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
                             </div>
                         ))}
                         
-                        {/* Empty Slots */}
-                        {[...Array(Math.max(0, 3 - user.duffles.length))].map((_, i) => (
+                        {[...Array(Math.max(0, 3 - (user.duffles?.length || 0)))].map((_, i) => (
                              <div key={`empty-${i}`} className="bg-black/20 border-2 border-dashed border-white/5 rounded-lg p-6 flex flex-col items-center justify-center text-center opacity-50">
                                  <div className="w-12 h-12 rounded-full bg-white/5 mb-4"></div>
                                  <p className="text-xs font-mono uppercase text-gray-600">Empty Slot</p>
@@ -208,7 +216,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
         </div>
       )}
 
-      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-40 bg-black/95 flex flex-col items-center justify-center gap-8 p-8">
             <button className="absolute top-6 right-6 text-gray-400" onClick={() => setMobileMenuOpen(false)}>Close [X]</button>
@@ -222,12 +229,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onOpenDuffle }) => {
         </div>
       )}
 
-      {/* Main Content Area */}
       <main className="flex-1 relative z-10 overflow-y-auto">
         {children}
       </main>
 
-      {/* Footer / Status Line */}
       <footer className="bg-black border-t border-white/5 py-2 px-6 text-[10px] text-gray-600 font-mono flex justify-between items-center z-20">
         <div className="flex gap-4">
             <span>LOS SANTOS REGION</span>
