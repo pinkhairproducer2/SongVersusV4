@@ -1,0 +1,7 @@
+{
+  "name": "SongVersus: City Arena",
+  "description": "A gritty, cinematic music battle platform where artists compete for territory and orbs in a neon-soaked urban landscape.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
